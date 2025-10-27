@@ -12,6 +12,22 @@ permissions:
   actions: read
 
 jobs:
+  build-backend:
+    name: Build SafeWalk.WebAPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build SafeWalk.WebAPI
+        uses: ./.github/workflows/actions/build-backend
+        with:
+          dotnet-version: '9.0.x'
+          configuration: 'Release'
+          solution-path: 'Backend/SafeWalk.WebAPI/SafeWalk.WebAPI.sln'
+
   check-pr-title:
     name: Check PR Title
     runs-on: ubuntu-latest
