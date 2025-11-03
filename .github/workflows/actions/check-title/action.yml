@@ -1,0 +1,57 @@
+name: 'Check Title Format'
+description: 'Validates PR and commit titles against conventional commit format with optional Kanban ticket reference'
+inputs:
+  title:
+    description: 'The title to check (PR title or commit message)'
+    required: true
+  regex:
+    description: 'Regular expression pattern to validate the title against'
+    required: false
+    default: '^(build|chore|ci|config|docs|feat|fix|perf|refactor|revert|style|test)(\([a-zA-Z0-9]+\))?: ?(\[KAN-\d+\] )?(.+)$'
+outputs:
+  valid:
+    description: 'Whether the title is valid (true/false)'
+    value: ${{ steps.check.outputs.valid }}
+  error_message:
+    description: 'Error message if validation fails'
+    value: ${{ steps.check.outputs.error_message }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate Title Format
+      id: check
+      shell: bash
+      run: |
+        TITLE="${{ inputs.title }}"
+        REGEX="${{ inputs.regex }}"
+        
+        echo "Checking title: $TITLE"
+        echo "Against regex: $REGEX"
+        
+        if [[ "$TITLE" =~ $REGEX ]]; then
+          echo "Title is valid!"
+          echo "valid=true" >> $GITHUB_OUTPUT
+          echo "error_message=" >> $GITHUB_OUTPUT
+        else
+          echo "Title does not match conventional commit format"
+          
+          echo "valid=false" >> $GITHUB_OUTPUT
+          {
+            echo "error_message<<EOF"
+            echo "Title does not match required conventional commit format."
+            echo ""
+            echo "Expected format: <type>[(scope)]: [KAN-XXX] <description>"
+            echo ""
+            echo "Examples:"
+            echo "  - feat: [KAN-123] Add new feature"
+            echo "  - fix(api): [KAN-456] Fix authentication bug"
+            echo "  - docs: Update README"
+            echo "  - chore(deps): Update dependencies"
+            echo ""
+            echo "Valid types: build, chore, ci, config, docs, feat, fix, perf, refactor, revert, style, test"
+            echo "Scope: Optional, alphanumeric"
+            echo "Kanban reference: Optional, format [KAN-XXX]"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          exit 1
+        fi
