@@ -1,0 +1,68 @@
+using DotNetEnv;
+using Microsoft.OpenApi.Models;
+using SafeWalk.WebAPI.Configuration;
+
+namespace SafeWalk.WebAPI;
+
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        // Load environment variables from .env file
+        Env.Load();
+        
+        var builder = WebApplication.CreateBuilder(args);
+
+        // Add services to the container.
+
+        builder.Services.AddControllers();
+        builder.Services.AddOpenApi();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(sgo =>
+        {
+            var serverUrl = EnvConfig.Get("API_SERVER_URL", "http://localhost:5175");
+            sgo.AddServer(new OpenApiServer { Url = serverUrl });
+        });
+
+        // Register middlewares
+        builder.Services.AddCors(opt =>
+        {
+            opt.AddDefaultPolicy(bld =>
+            {
+                bld
+                    .SetIsOriginAllowed(origin => true)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials()
+                    .WithHeaders("Access-Control-Allow-Origin");
+            });
+        });
+
+        var app = builder.Build();
+
+        // Configure the HTTP request pipeline.
+        if (app.Environment.IsDevelopment())
+        {
+            app.MapOpenApi();
+            app.UseSwagger();
+            app.UseSwaggerUI();
+        }
+        
+        app.UseNoCacheHttpHeaders();
+        app.UseHsts(hsts => hsts.MaxAge(30).IncludeSubdomains());
+        app.UseXContentTypeOptions();
+        app.UseReferrerPolicy(referrerPolicy => referrerPolicy.NoReferrer());
+        app.UseXXssProtection(xssProtection => xssProtection.EnabledWithBlockMode());
+        app.UseXfo(opts => opts.Deny());
+        app.UseHttpsRedirection();
+
+        app.UseCors();
+
+        app.UseAuthentication();
+        app.UseAuthorization();
+        
+        app.MapControllers();
+
+        app.Run();
+    }
+}
