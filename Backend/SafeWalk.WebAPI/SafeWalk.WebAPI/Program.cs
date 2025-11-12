@@ -1,5 +1,7 @@
 using DotNetEnv;
 using Microsoft.OpenApi.Models;
+using SafeWalk.WebAPI.Composition;
+using SafeWalk.WebAPI.Composition.Modules;
 using SafeWalk.WebAPI.Configuration;
 
 namespace SafeWalk.WebAPI;
@@ -37,7 +39,16 @@ public class Program
                     .WithHeaders("Access-Control-Allow-Origin");
             });
         });
+        
+        // Register services
+        List<IServiceModule> serviceModules = new List<IServiceModule> { new CoreModule() };
 
+        foreach (var module in serviceModules)
+        {
+            module.ConfigureServices(builder.Services, builder.Configuration);
+        }
+
+        
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.
