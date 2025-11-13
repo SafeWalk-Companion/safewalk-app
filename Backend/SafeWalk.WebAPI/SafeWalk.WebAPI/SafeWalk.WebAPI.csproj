@@ -20,10 +20,10 @@
       </Content>
     </ItemGroup>
 
-    <!-- New project reference to Core -->
     <ItemGroup>
         <ProjectReference Include="..\SafeWalk.WebAPI.Composition\SafeWalk.WebAPI.Composition.csproj" />
         <ProjectReference Include="..\SafeWalk.WebAPI.Core\SafeWalk.WebAPI.Core.csproj" />
+      <Folder Include="Controllers\" />
     </ItemGroup>
 
 </Project>
