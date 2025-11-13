@@ -1,4 +1,4 @@
-name: Check Title Format
+name: SafeWalk App
 
 on:
   pull_request:
@@ -27,6 +27,24 @@ jobs:
           dotnet-version: '9.0.x'
           configuration: 'Release'
           solution-path: 'Backend/SafeWalk.WebAPI/SafeWalk.WebAPI.sln'
+
+  test-backend:
+    name: Test SafeWalk.WebAPI
+    runs-on: ubuntu-latest
+    needs: build-backend
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run XUnit Tests
+        uses: ./.github/workflows/actions/test-backend
+        with:
+          dotnet-version: '9.0.x'
+          configuration: 'Release'
+          solution-path: 'Backend/SafeWalk.WebAPI/SafeWalk.WebAPI.sln'
+          test-project-path: 'Backend/SafeWalk.WebAPI/SafeWalk.WebAPI.Core.Tests/SafeWalk.WebAPI.Core.Tests.csproj'
 
   check-pr-title:
     name: Check PR Title
