@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SafeWalk.WebAPI.Core.Services;
+using SafeWalk.WebAPI.Domain;
 
 namespace SafeWalk.WebAPI.Composition.Modules;
 

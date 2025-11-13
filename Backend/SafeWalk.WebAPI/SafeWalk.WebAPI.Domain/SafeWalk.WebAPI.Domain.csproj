@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SafeWalk.WebAPI.Domain\SafeWalk.WebAPI.Domain.csproj" />
+      <PackageReference Include="AutoMapper" Version="15.1.0" />
     </ItemGroup>
 
 </Project>

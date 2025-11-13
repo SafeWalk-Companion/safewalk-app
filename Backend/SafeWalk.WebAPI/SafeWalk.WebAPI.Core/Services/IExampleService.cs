@@ -1,5 +1,6 @@
 // filepath: /Users/UYRW0IO/Documents/Projects/safewalk-app/Backend/SafeWalk.WebAPI/SafeWalk.WebAPI.Core/Services/IExampleService.cs
 using SafeWalk.WebAPI.Core.Responses;
+using SafeWalk.WebAPI.Domain.DTOs;
 
 namespace SafeWalk.WebAPI.Core.Services;
 
@@ -8,7 +9,7 @@ namespace SafeWalk.WebAPI.Core.Services;
 /// </summary>
 public interface IExampleService : ICoreService
 {
-    ApiResponse<object> GetExample();
+    ApiResponse<TestDTO> GetExample();
     ApiResponse GetNotFound();
     ApiResponse GetValidationError();
     ApiResponse<string> GetGreeting(string? name);

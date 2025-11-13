@@ -13,6 +13,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\SafeWalk.WebAPI.Core\SafeWalk.WebAPI.Core.csproj" />
+      <ProjectReference Include="..\SafeWalk.WebAPI.Domain\SafeWalk.WebAPI.Domain.csproj" />
     </ItemGroup>
 
 </Project>

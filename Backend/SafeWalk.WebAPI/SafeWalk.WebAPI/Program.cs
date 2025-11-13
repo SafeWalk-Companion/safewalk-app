@@ -1,8 +1,10 @@
+using AutoMapper;
 using DotNetEnv;
 using Microsoft.OpenApi.Models;
 using SafeWalk.WebAPI.Composition;
 using SafeWalk.WebAPI.Composition.Modules;
 using SafeWalk.WebAPI.Configuration;
+using SafeWalk.WebAPI.Domain;
 
 namespace SafeWalk.WebAPI;
 
@@ -39,6 +41,9 @@ public class Program
                     .WithHeaders("Access-Control-Allow-Origin");
             });
         });
+
+        builder.Services.AddSingleton<IMapper>(sp => 
+            MappingConfig.RegisterMappings(EnvConfig.GetRequired("AUTOMAPPER_LICENSE_KEY"), sp));
         
         // Register services
         List<IServiceModule> serviceModules = new List<IServiceModule> { new CoreModule() };
@@ -47,7 +52,6 @@ public class Program
         {
             module.ConfigureServices(builder.Services, builder.Configuration);
         }
-
         
         var app = builder.Build();
 

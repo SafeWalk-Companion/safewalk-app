@@ -1,5 +1,8 @@
 using System.Net;
+using AutoMapper;
 using SafeWalk.WebAPI.Core.Responses;
+using SafeWalk.WebAPI.Domain.DTOs;
+using SafeWalk.WebAPI.Domain.Entities;
 
 namespace SafeWalk.WebAPI.Core.Services;
 
@@ -8,10 +11,19 @@ namespace SafeWalk.WebAPI.Core.Services;
 /// </summary>
 public sealed class ExampleService : IExampleService
 {
-    public ApiResponse<object> GetExample()
+    private readonly IMapper Mapper;
+    
+    public ExampleService(IMapper mapper)
     {
-        var payload = new { Example = "value" };
-        return ApiResponse<object>.Ok(payload, "Request succeeded");
+        Mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+    }
+    
+    public ApiResponse<TestDTO> GetExample()
+    {
+        TestEntity testEntity = new TestEntity() { Id = 1, Name = "Test" };
+        TestDTO testDto = Mapper.Map<TestDTO>(testEntity);
+        
+        return ApiResponse<TestDTO>.Ok(testDto, "Request succeeded");
     }
 
     public ApiResponse GetNotFound()
