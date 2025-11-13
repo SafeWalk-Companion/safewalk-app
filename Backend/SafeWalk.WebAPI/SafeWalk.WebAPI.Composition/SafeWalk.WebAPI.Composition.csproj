@@ -11,4 +11,9 @@
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-rc.2.25502.107" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\SafeWalk.WebAPI.Core\SafeWalk.WebAPI.Core.csproj" />
+      <ProjectReference Include="..\SafeWalk.WebAPI.Domain\SafeWalk.WebAPI.Domain.csproj" />
+    </ItemGroup>
+
 </Project>
