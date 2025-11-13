@@ -1,4 +1,4 @@
-name: SafeWalk Platform
+name: SafeWalk App
 
 on:
   pull_request:
