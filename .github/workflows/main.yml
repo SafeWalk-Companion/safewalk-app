@@ -1,4 +1,4 @@
-name: Check Title Format
+name: SafeWalk Platform
 
 on:
   pull_request:
