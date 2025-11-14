@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:safewalk/components/testcontroller.dart';
 
 void main() {
   runApp(const MyApp());
@@ -54,17 +55,28 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  final TestController _testController = TestController();
+  String _responseText = 'Press the button to test the API connection';
+  bool _isLoading = false;
 
-  void _incrementCounter() {
+  Future<void> _testApiConnection() async {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter += 3;
+      _isLoading = true;
+      _responseText = 'Loading...';
     });
+
+    try {
+      final response = await _testController.testAndGetFormattedResponse();
+      setState(() {
+        _responseText = response;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _responseText = 'Unexpected error: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -85,37 +97,58 @@ class _MyHomePageState extends State<MyHomePage> {
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            const Text(
+              'SafeWalk API Test',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _testApiConnection,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Test API Connection',
+                      style: TextStyle(fontSize: 16),
+                    ),
+            ),
+            const SizedBox(height: 30),
+            const Text(
+              'Response:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[400]!),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(
+                    _responseText,
+                    style: const TextStyle(fontSize: 14, fontFamily: 'Courier'),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
       ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
