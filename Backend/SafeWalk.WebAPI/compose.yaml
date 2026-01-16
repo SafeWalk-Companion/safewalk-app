@@ -1,7 +1,0 @@
-﻿services:
-  safewalk.webapi:
-    image: safewalk.webapi
-    build:
-      context: .
-      dockerfile: SafeWalk.WebAPI/Dockerfile
-
