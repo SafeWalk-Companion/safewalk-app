@@ -8,9 +8,17 @@ import { Construct } from 'constructs';
 import * as path from 'path';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 
-export class AppUserStack extends cdk.Stack {
+export class AppBackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+
+
+    /******** USER MANAGEMENT ********/
+
+
+
+    /* DynamoDB Table for App Users */
 
     const appUsersTable = new dynamodb.Table(this, 'app-users-table', {
       tableName: 'AppUsers',
@@ -32,6 +40,8 @@ export class AppUserStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    /* Lambda Function for User Profile Management */
+
     const userProfileHandler = new NodejsFunction(this, 'app-user-profile-handler', {
       functionName: 'app-user-profile-handler',
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -47,6 +57,41 @@ export class AppUserStack extends cdk.Stack {
 
     appUsersTable.grantReadWriteData(userProfileHandler);
 
+
+
+    /******** PLATFORM ********/
+
+
+    /* Lambda Function for Platform Registration */
+
+    const platformRegistrationHandler = new NodejsFunction(this, 'platform-registration-handler', {
+      functionName: 'platform-registration-handler',
+      runtime: lambda.Runtime.NODEJS_24_X,
+      handler: 'index.handler',
+      entry: path.join(__dirname, '../../lambda/platform-registration-handler/index.ts'),
+      environment: {
+        PLATFORM_DOMAIN: process.env.PLATFORM_DOMAIN || 'https://example.com/api/register',
+        VENDOR_ID: process.env.VENDOR_ID || 'default-vendor-id',
+        API_KEY: process.env.API_KEY || 'default-api-key',
+        TABLE_NAME: appUsersTable.tableName,
+      },
+      timeout: cdk.Duration.seconds(20),
+      memorySize: 128,
+      logRetention: logs.RetentionDays.ONE_WEEK,
+    });
+
+    appUsersTable.grantReadWriteData(platformRegistrationHandler);
+
+
+
+
+
+
+
+    /******** API GATEWAY ********/
+
+
+
     const httpApi = new apigateway.HttpApi(this, 'safewalk-app-api', {
       apiName: 'safewalk-app-api',
       description: 'SafeWalk App API',
@@ -57,16 +102,35 @@ export class AppUserStack extends cdk.Stack {
       },
     });
 
-    const lambdaIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+    /* Lambda Integrations */
+
+    const userLambdaIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
       'app-user-profile-integration',
       userProfileHandler
     );
 
+    const platformLambdaIntegration = new apigatewayIntegrations.HttpLambdaIntegration(
+      'platform-registration-integration',
+      platformRegistrationHandler
+    );
+
+    /* API Routes */
+
     httpApi.addRoutes({
       path: '/register',
       methods: [apigateway.HttpMethod.POST],
-      integration: lambdaIntegration,
+      integration: userLambdaIntegration,
     });
+
+    httpApi.addRoutes({
+      path: '/register/platform',
+      methods: [apigateway.HttpMethod.POST],
+      integration: platformLambdaIntegration,
+    });
+    
+
+
+
 
     new cdk.CfnOutput(this, 'api-url', {
       value: httpApi.apiEndpoint,
