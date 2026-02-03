@@ -1,15 +1,20 @@
 name: SafeWalk App
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
-    types: [opened, edited, synchronize, reopened]
-  pull_request_target:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
 
 permissions:
-  id-token: write # This is required for requesting the JWT (OIDC)
-  contents: read # This is required for actions/checkout
-  actions: read
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: eu-central-1
 
 jobs:
   check-pr-title:
@@ -52,3 +57,18 @@ jobs:
               repo: context.repo.repo,
               body: message
             });
+
+  deploy-infra:
+    name: Deploy Infrastructure
+    if: |
+      github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Infrastructure
+        uses: ./.github/actions/deploy-infra
+        with:
+          aws-account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          aws-region: ${{ env.AWS_REGION }}
