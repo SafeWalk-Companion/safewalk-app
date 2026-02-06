@@ -41,13 +41,13 @@ jobs:
             
             Your PR title does not match the required conventional commit format.
             
-            **Expected format:** \`<type>[(scope)]: [KAN-XXX] <description>\`
+            **Expected format:** \`<type>[(scope)]: [SW-XXX] <description>\`
             
             **Valid types:** build, chore, ci, config, docs, feat, fix, perf, refactor, revert, style, test
             
             **Scope:** Optional, alphanumeric
             
-            **Kanban reference:** Optional, format \`[KAN-XXX]\`
+            **Kanban reference:** Optional, format \`[SW-XXX]\`
             
             Please update your PR title to match this format.`;
 
@@ -70,5 +70,8 @@ jobs:
       - name: Deploy Infrastructure
         uses: ./.github/workflows/actions/deploy-infra
         with:
+          vendor-id: ${{ secrets.VENDOR_ID }}
+          api-key: ${{ secrets.API_KEY }}
+          platform-domain: ${{ secrets.PLATFORM_DOMAIN }}
           aws-account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           aws-region: ${{ env.AWS_REGION }}

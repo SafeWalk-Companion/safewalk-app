@@ -12,6 +12,13 @@ export class AppBackendStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    const required = ['PLATFORM_DOMAIN', 'VENDOR_ID', 'API_KEY'];
+
+    for (const name of required) {
+      if (!process.env[name]) {
+        throw new Error(`Missing required env var: ${name}`);
+      }
+    }
 
 
     /******** USER MANAGEMENT ********/
