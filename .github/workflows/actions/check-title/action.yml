@@ -7,7 +7,7 @@ inputs:
   regex:
     description: 'Regular expression pattern to validate the title against'
     required: false
-    default: '^(build|chore|ci|config|docs|feat|fix|perf|refactor|revert|style|test)(\([a-zA-Z0-9]+\))?: ?(\[KAN-\d+\] )?(.+)$'
+    default: '^(build|chore|ci|config|docs|feat|fix|perf|refactor|revert|style|test)(\([a-zA-Z0-9]+\))?: ?(\[SW-\d+\] )?(.+)$'
 outputs:
   valid:
     description: 'Whether the title is valid (true/false)'
@@ -50,7 +50,7 @@ runs:
             echo ""
             echo "Valid types: build, chore, ci, config, docs, feat, fix, perf, refactor, revert, style, test"
             echo "Scope: Optional, alphanumeric"
-            echo "Kanban reference: Optional, format [KAN-XXX]"
+            echo "Kanban reference: Optional, format [SW-XXX]"
             echo "EOF"
           } >> $GITHUB_OUTPUT
           exit 1

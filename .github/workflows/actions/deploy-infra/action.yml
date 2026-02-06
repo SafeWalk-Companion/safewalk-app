@@ -53,8 +53,8 @@ runs:
       if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       shell: bash
       working-directory: Backend/infra
-      env:
-        API_KEY: ${{ secrets.API_KEY }}
-        PLATFORM_DOMAIN: ${{ secrets.PLATFORM_DOMAIN }}
-        VENDOR_ID: ${{ secrets.VENDOR_ID }}
-      run: npx cdk deploy safewalk-app-backend-stack --require-approval never
+      run:
+        export PLATFORM_DOMAIN="${{ secrets.PLATFORM_DOMAIN }}"
+        export VENDOR_ID="${{ secrets.VENDOR_ID }}"
+        export API_KEY="${{ secrets.API_KEY }}"
+        npx cdk deploy safewalk-app-backend-stack --require-approval never
