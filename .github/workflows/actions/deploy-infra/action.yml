@@ -2,6 +2,12 @@ name: 'Deploy Infrastructure'
 description: 'Deploy CDK infrastructure stacks to AWS'
 
 inputs:
+  vendor-id:
+    required: true
+  api-key:
+    required: true
+  platform-domain:
+    required: true
   aws-account-id:
     description: 'AWS Account ID'
     required: true
@@ -53,8 +59,8 @@ runs:
       if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
       shell: bash
       working-directory: Backend/infra
-      run:
-        export PLATFORM_DOMAIN="${{ secrets.PLATFORM_DOMAIN }}"
-        export VENDOR_ID="${{ secrets.VENDOR_ID }}"
-        export API_KEY="${{ secrets.API_KEY }}"
-        npx cdk deploy safewalk-app-backend-stack --require-approval never
+      env:
+        API_KEY: ${{ inputs.api-key }}
+        PLATFORM_DOMAIN: ${{ inputs.platform-domain }}
+        VENDOR_ID: ${{ inputs.vendor-id }}
+      run: npx cdk deploy safewalk-app-backend-stack --require-approval never
