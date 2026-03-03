@@ -1,16 +1,34 @@
-# safewalk
+# Run on iOS
 
-The mobile application of the SafeWalk App
+## Create an iPhone Simulator Device
 
-## Getting Started
+Make sure you have installed the correct iOS version (in this case 26.2). Change the following code according to your iOS version
 
-This project is a starting point for a Flutter application.
+```
+xcrun simctl create "iPhone 16e 26.2" com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-26-2
+```
 
-A few resources to get you started if this is your first Flutter project:
+## List available devices & run Simulator
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+```xcrun simctl list devices```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Select the ID from the device you want to emulate and run 
+
+```
+open -a Simulator --args -CurrentDeviceUDID <your-device-id>
+```
+
+with your id instead of ```<your-device-id>```.
+
+When running ```flutter devices``` you should now see the emulator
+
+## Running the app on the device
+
+Copy the Device id listed in ```flutter devices``` and run
+
+```
+flutter run -d <your-device-id>
+```
+with your device id.
+
+For hot-reload press ```r``` in the terminal.
