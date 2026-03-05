@@ -1,30 +1,40 @@
-// This is a basic Flutter widget test.
+// Basic smoke test for the SafeWalk application.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Verifies that the app boots without errors and shows the login screen.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
-import 'package:safewalk/main.dart';
+import 'package:safewalk/app.dart';
+import 'package:safewalk/services/api_service.dart';
+import 'package:safewalk/viewmodels/home_viewmodel.dart';
+import 'package:safewalk/viewmodels/login_viewmodel.dart';
+import 'package:safewalk/viewmodels/map_viewmodel.dart';
+import 'package:safewalk/viewmodels/contacts_viewmodel.dart';
+import 'package:safewalk/viewmodels/settings_viewmodel.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App starts and shows login screen', (WidgetTester tester) async {
+    final apiService = ApiService();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => LoginViewModel(apiService: apiService),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => HomeViewModel(apiService: apiService),
+          ),
+          ChangeNotifierProvider(create: (_) => MapViewModel()),
+          ChangeNotifierProvider(create: (_) => ContactsViewModel()),
+          ChangeNotifierProvider(create: (_) => SettingsViewModel()),
+        ],
+        child: const SafeWalkApp(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // The login screen should display the app name.
+    expect(find.text('SafeWalk'), findsOneWidget);
   });
 }
