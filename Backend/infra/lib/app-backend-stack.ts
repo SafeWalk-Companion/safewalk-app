@@ -56,6 +56,9 @@ export class AppBackendStack extends cdk.Stack {
       entry: path.join(__dirname, '../../lambda/user-profile-handler/index.ts'),
       environment: {
         TABLE_NAME: appUsersTable.tableName,
+        PLATFORM_DOMAIN: process.env.PLATFORM_DOMAIN || '',
+        VENDOR_ID: process.env.VENDOR_ID || '',
+        API_KEY: process.env.API_KEY || '',
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 128,
@@ -133,6 +136,24 @@ export class AppBackendStack extends cdk.Stack {
       path: '/register/platform',
       methods: [apigateway.HttpMethod.POST],
       integration: platformLambdaIntegration,
+    });
+
+    httpApi.addRoutes({
+      path: '/sharing-code',
+      methods: [apigateway.HttpMethod.GET],
+      integration: userLambdaIntegration,
+    });
+
+    httpApi.addRoutes({
+      path: '/sharing-code',
+      methods: [apigateway.HttpMethod.POST],
+      integration: userLambdaIntegration,
+    });
+
+    httpApi.addRoutes({
+      path: '/sharing-code/connect',
+      methods: [apigateway.HttpMethod.POST],
+      integration: userLambdaIntegration,
     });
     
 
