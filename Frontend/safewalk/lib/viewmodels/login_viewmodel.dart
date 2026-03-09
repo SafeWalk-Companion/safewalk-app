@@ -1,4 +1,5 @@
-// LoginViewModel manages state for the Login / Registration screen.
+// LoginViewModel manages state for the Login / Registration / Password-Reset
+// screens.
 //
 // It holds form field values, validates input, and triggers authentication
 // calls via [ApiService]. The View observes this ViewModel through
@@ -7,19 +8,28 @@
 import 'package:flutter/foundation.dart';
 import 'package:safewalk/services/api_service.dart';
 
+/// The different screens / modes the auth flow can be in.
+enum AuthMode {
+  signIn,
+  signUp,
+  confirmSignUp,
+  forgotPassword,
+  confirmForgotPassword,
+}
+
 class LoginViewModel extends ChangeNotifier {
   final ApiService _apiService;
 
   LoginViewModel({ApiService? apiService})
-    : _apiService = apiService ?? ApiService();
+      : _apiService = apiService ?? ApiService();
 
   // ---------------------------------------------------------------------------
   // Observable state
   // ---------------------------------------------------------------------------
 
-  /// Whether the UI is showing the registration form (true) or login form.
-  bool _isRegistering = false;
-  bool get isRegistering => _isRegistering;
+  /// Current auth-flow step.
+  AuthMode _authMode = AuthMode.signIn;
+  AuthMode get authMode => _authMode;
 
   /// Status / error message displayed below the form.
   String _statusMessage = '';
@@ -33,53 +43,190 @@ class LoginViewModel extends ChangeNotifier {
   bool _isAuthenticated = false;
   bool get isAuthenticated => _isAuthenticated;
 
+  /// Stores the email after sign-up so it can be pre-filled in confirm step.
+  String _pendingEmail = '';
+  String get pendingEmail => _pendingEmail;
+
   // ---------------------------------------------------------------------------
-  // Actions
+  // Mode switching
   // ---------------------------------------------------------------------------
 
-  /// Toggles between login and registration mode.
-  void toggleMode() {
-    _isRegistering = !_isRegistering;
+  /// Switches to the given [mode] and clears status message.
+  void switchMode(AuthMode mode) {
+    _authMode = mode;
     _statusMessage = '';
     notifyListeners();
   }
 
-  /// Attempts to log in with the given credentials.
-  Future<void> login(String email, String password) async {
+  /// Convenience: toggles between sign-in and sign-up.
+  void toggleMode() {
+    switchMode(
+        _authMode == AuthMode.signIn ? AuthMode.signUp : AuthMode.signIn);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Auth actions
+  // ---------------------------------------------------------------------------
+
+  /// Signs in with [email] and [password].
+  Future<void> signIn(String email, String password) async {
     _isLoading = true;
     _statusMessage = '';
     notifyListeners();
 
-    final result = await _apiService.login(email, password);
+    final result = await _apiService.signIn(email, password);
 
+    if (result.isSuccess) {
+      // After sign-in, create the user profile in DynamoDB (idempotent).
+      await _apiService.registerProfile();
+
+      _isAuthenticated = true;
+      _statusMessage = 'Login erfolgreich!';
+    } else {
+      final data = result.data;
+      _statusMessage =
+          (data is Map && data['error'] != null)
+              ? data['error'] as String
+              : result.message ?? 'Login fehlgeschlagen.';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Registers a new account.
+  Future<void> signUp(
+    String email,
+    String password, {
+    String? displayName,
+  }) async {
+    _isLoading = true;
+    _statusMessage = '';
+    notifyListeners();
+
+    final result = await _apiService.signUp(email, password,
+        displayName: displayName);
+
+    if (result.isSuccess) {
+      _pendingEmail = email;
+      _statusMessage =
+          'Registrierung erfolgreich! Bitte prüfe deine E-Mails und gib den Bestätigungscode ein.';
+      _authMode = AuthMode.confirmSignUp;
+    } else {
+      final data = result.data;
+      _statusMessage =
+          (data is Map && data['error'] != null)
+              ? data['error'] as String
+              : result.message ?? 'Registrierung fehlgeschlagen.';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Confirms the email address with [confirmationCode].
+  Future<void> confirmSignUp(String email, String confirmationCode) async {
+    _isLoading = true;
+    _statusMessage = '';
+    notifyListeners();
+
+    final result = await _apiService.confirmSignUp(email, confirmationCode);
+
+    if (result.isSuccess) {
+      _statusMessage = 'E-Mail bestätigt! Du kannst dich jetzt anmelden.';
+      _authMode = AuthMode.signIn;
+    } else {
+      final data = result.data;
+      _statusMessage =
+          (data is Map && data['error'] != null)
+              ? data['error'] as String
+              : result.message ?? 'Bestätigung fehlgeschlagen.';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Triggers the forgot-password flow.
+  Future<void> forgotPassword(String email) async {
+    _isLoading = true;
+    _statusMessage = '';
+    notifyListeners();
+
+    final result = await _apiService.forgotPassword(email);
+
+    if (result.isSuccess) {
+      _pendingEmail = email;
+      _statusMessage =
+          'Falls ein Konto mit dieser E-Mail existiert, wurde ein Reset-Code gesendet.';
+      _authMode = AuthMode.confirmForgotPassword;
+    } else {
+      final data = result.data;
+      _statusMessage =
+          (data is Map && data['error'] != null)
+              ? data['error'] as String
+              : result.message ?? 'Anfrage fehlgeschlagen.';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Resets the password with the code and sets a new one.
+  Future<void> confirmForgotPassword(
+    String email,
+    String confirmationCode,
+    String newPassword,
+  ) async {
+    _isLoading = true;
+    _statusMessage = '';
+    notifyListeners();
+
+    final result = await _apiService.confirmForgotPassword(
+      email,
+      confirmationCode,
+      newPassword,
+    );
+
+    if (result.isSuccess) {
+      _statusMessage =
+          'Passwort erfolgreich zurückgesetzt. Du kannst dich jetzt anmelden.';
+      _authMode = AuthMode.signIn;
+    } else {
+      final data = result.data;
+      _statusMessage =
+          (data is Map && data['error'] != null)
+              ? data['error'] as String
+              : result.message ?? 'Passwort-Reset fehlgeschlagen.';
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Signs out the current user and resets state.
+  Future<void> signOut() async {
+    await _apiService.signOut();
+    _isAuthenticated = false;
+    _authMode = AuthMode.signIn;
+    _statusMessage = '';
+    notifyListeners();
+  }
+
+  /// Tries to restore the session from stored tokens (call on app start).
+  Future<void> tryRestoreSession() async {
+    final hasTokens = await _apiService.authService.hasTokens;
+    if (!hasTokens) return;
+
+    // Try a silent refresh to validate that the refresh token is still good.
+    final result = await _apiService.refreshTokens();
     if (result.isSuccess) {
       _isAuthenticated = true;
-      _statusMessage = 'Login successful!';
+      notifyListeners();
     } else {
-      _statusMessage = result.message ?? 'Login failed.';
+      // Tokens are invalid – clear them.
+      await _apiService.authService.clearTokens();
     }
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  /// Attempts to register a new account.
-  Future<void> register(String username, String email, String password) async {
-    _isLoading = true;
-    _statusMessage = '';
-    notifyListeners();
-
-    final result = await _apiService.register(username, email, password);
-
-    if (result.isSuccess) {
-      _statusMessage = 'Registration successful! You can now log in.';
-      _isRegistering = false;
-    } else {
-      _statusMessage = result.message ?? 'Registration failed.';
-    }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
   /// Skips authentication (for development / testing purposes).

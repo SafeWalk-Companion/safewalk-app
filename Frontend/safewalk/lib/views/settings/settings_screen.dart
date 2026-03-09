@@ -1,29 +1,64 @@
-// SettingsScreen is a placeholder view for app settings.
+// SettingsScreen allows the user to manage their account and app preferences.
 //
-// It will eventually allow the user to configure notifications,
+// Currently provides a sign-out button. Will eventually include notifications,
 // appearance, account details, and other preferences.
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:safewalk/viewmodels/login_viewmodel.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.settings_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
+          const Icon(Icons.settings_outlined, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
             'Settings',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
-          SizedBox(height: 8),
-          Text(
+          const SizedBox(height: 8),
+          const Text(
             'App settings coming soon.',
             style: TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: () => _confirmSignOut(context),
+            icon: const Icon(Icons.logout),
+            label: const Text('Abmelden'),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: Colors.red,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmSignOut(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Abmelden'),
+        content: const Text('Möchtest du dich wirklich abmelden?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.read<LoginViewModel>().signOut();
+            },
+            child: const Text('Abmelden', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

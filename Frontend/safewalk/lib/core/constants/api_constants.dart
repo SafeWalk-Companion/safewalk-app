@@ -10,12 +10,54 @@ class ApiConstants {
       'https://0ibq771vuf.execute-api.eu-central-1.amazonaws.com';
 
   /// Default timeout duration for HTTP requests.
-  static const Duration defaultTimeout = Duration(seconds: 10);
+  static const Duration defaultTimeout = Duration(seconds: 15);
 
   // ---------------------------------------------------------------------------
-  // Endpoint paths
+  // Auth endpoints (public – no JWT required)
   // ---------------------------------------------------------------------------
 
-  /// POST – Register a new platform user.
+  /// POST – Sign up a new user account.
+  static const String authSignUp = '/auth/sign-up';
+
+  /// POST – Confirm email address with verification code.
+  static const String authConfirm = '/auth/confirm';
+
+  /// POST – Sign in and receive JWT tokens.
+  static const String authSignIn = '/auth/sign-in';
+
+  /// POST – Refresh idToken / accessToken using refreshToken.
+  static const String authRefresh = '/auth/refresh';
+
+  /// POST – Sign out (invalidate all tokens).
+  static const String authSignOut = '/auth/sign-out';
+
+  /// POST – Request a password-reset code via email.
+  static const String authForgotPassword = '/auth/forgot-password';
+
+  /// POST – Set a new password using the reset code.
+  static const String authConfirmForgotPassword =
+      '/auth/confirm-forgot-password';
+
+  // ---------------------------------------------------------------------------
+  // Protected endpoints (JWT required)
+  // ---------------------------------------------------------------------------
+
+  /// POST – Create user profile in DynamoDB (once after first login).
+  static const String register = '/register';
+
+  /// POST – Register user on the SafeWalk platform.
   static const String registerPlatform = '/register/platform';
+
+  /// GET  – Retrieve current sharing code.
+  /// POST – Generate a new sharing code.
+  static const String sharingCode = '/sharing-code';
+
+  /// POST – Connect with a friend using their sharing code.
+  static const String sharingCodeConnect = '/sharing-code/connect';
+
+  /// GET – List all trusted contacts.
+  static const String contacts = '/contacts';
+
+  /// Returns the path for a specific contact: /contacts/{contactId}
+  static String contactById(String contactId) => '/contacts/$contactId';
 }

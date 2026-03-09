@@ -1,10 +1,14 @@
 // ApiClient provides a general-purpose HTTP client for communicating with
 // REST APIs. It wraps the `http` package and offers typed methods for
-// GET, POST, PUT, and DELETE requests with consistent error handling,
+// GET, POST, PUT, PATCH, and DELETE requests with consistent error handling,
 // timeout support, and JSON serialization.
+//
+// For authenticated requests set [authToken] before making calls.
+// The token is automatically added as `Authorization: Bearer <token>`.
 //
 // Usage:
 //   final client = ApiClient(baseUrl: 'https://api.example.com');
+//   client.authToken = 'eyJ...';       // optional – enables auth header
 //   final result = await client.get('/users');
 
 import 'dart:convert';
@@ -18,9 +22,14 @@ class ApiClient {
   /// Maximum duration to wait for a response before timing out.
   final Duration timeout;
 
+  /// When set, every request includes `Authorization: Bearer <authToken>`.
+  /// Set to `null` to disable.
+  String? authToken;
+
   ApiClient({
     required this.baseUrl,
     this.timeout = const Duration(seconds: 30),
+    this.authToken,
   });
 
   // ---------------------------------------------------------------------------
@@ -98,6 +107,30 @@ class ApiClient {
     }
   }
 
+  /// Sends a PATCH request to [endpoint] with an optional JSON [body].
+  Future<ApiResult> patch(
+    String endpoint, {
+    dynamic body,
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final uri = _buildUri(endpoint, null);
+      final response = await http
+          .patch(
+            uri,
+            headers: _buildHeaders(headers),
+            body: body != null ? jsonEncode(body) : null,
+          )
+          .timeout(timeout);
+      return _handleResponse(response);
+    } catch (e) {
+      return ApiResult.error(
+        statusCode: 0,
+        message: 'PATCH request failed: ${e.toString()}',
+      );
+    }
+  }
+
   /// Sends a DELETE request to [endpoint].
   Future<ApiResult> delete(
     String endpoint, {
@@ -136,11 +169,16 @@ class ApiClient {
   }
 
   /// Merges default JSON headers with any [customHeaders].
+  /// Automatically includes `Authorization: Bearer <authToken>` when
+  /// [authToken] is set.
   Map<String, String> _buildHeaders(Map<String, String>? customHeaders) {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+    if (authToken != null && authToken!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $authToken';
+    }
     if (customHeaders != null) {
       headers.addAll(customHeaders);
     }

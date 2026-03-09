@@ -1,11 +1,12 @@
-// LoginScreen provides a combined Login / Registration form.
-//
-// Users can toggle between the two modes. A "Skip Login" button is provided
-// for development convenience while the backend authentication endpoints
-// are not yet implemented.
+// LoginScreen provides a multi-step authentication form covering:
+//   - Sign In
+//   - Sign Up (with display name)
+//   - Confirm Sign Up (verification code)
+//   - Forgot Password
+//   - Confirm Forgot Password (reset code + new password)
 //
 // The screen observes [LoginViewModel] to react to state changes
-// (loading indicator, status messages, authentication result).
+// (loading indicator, status messages, authentication result, current mode).
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,16 +20,19 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // Controllers to read form field values.
-  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _displayNameController = TextEditingController();
+  final _codeController = TextEditingController();
+  final _newPasswordController = TextEditingController();
 
   @override
   void dispose() {
-    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _displayNameController.dispose();
+    _codeController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
   }
 
@@ -51,46 +55,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  vm.isRegistering ? 'Create an Account' : 'Welcome Back',
+                  _subtitle(vm.authMode),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 32),
 
-                // Username field (only in registration mode)
-                if (vm.isRegistering) ...[
-                  TextField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                // --- Dynamic form fields based on auth mode ---
+                ..._buildFormFields(vm),
 
-                // Email field
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Password field
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                ),
                 const SizedBox(height: 24),
 
                 // Submit button
@@ -108,28 +80,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(
-                            vm.isRegistering ? 'Register' : 'Login',
+                            _submitLabel(vm.authMode),
                             style: const TextStyle(fontSize: 16),
                           ),
                   ),
                 ),
                 const SizedBox(height: 12),
 
-                // Toggle login / register
-                TextButton(
-                  onPressed: vm.isLoading ? null : () => vm.toggleMode(),
-                  child: Text(
-                    vm.isRegistering
-                        ? 'Already have an account? Login'
-                        : 'No account yet? Register',
-                  ),
-                ),
-
-                // Skip login (dev convenience)
-                TextButton(
-                  onPressed: vm.isLoading ? null : () => vm.skipLogin(),
-                  child: const Text('Skip Login (Dev)'),
-                ),
+                // --- Secondary actions ---
+                ..._buildSecondaryActions(vm),
 
                 // Status message
                 if (vm.statusMessage.isNotEmpty) ...[
@@ -138,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     vm.statusMessage,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: vm.statusMessage.contains('successful')
+                      color: _isSuccessMessage(vm.statusMessage)
                           ? Colors.green
                           : Colors.red,
                     ),
@@ -152,16 +111,255 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Reads the form fields and delegates to the ViewModel.
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  String _subtitle(AuthMode mode) {
+    switch (mode) {
+      case AuthMode.signIn:
+        return 'Willkommen zurück';
+      case AuthMode.signUp:
+        return 'Konto erstellen';
+      case AuthMode.confirmSignUp:
+        return 'E-Mail bestätigen';
+      case AuthMode.forgotPassword:
+        return 'Passwort vergessen';
+      case AuthMode.confirmForgotPassword:
+        return 'Neues Passwort setzen';
+    }
+  }
+
+  String _submitLabel(AuthMode mode) {
+    switch (mode) {
+      case AuthMode.signIn:
+        return 'Anmelden';
+      case AuthMode.signUp:
+        return 'Registrieren';
+      case AuthMode.confirmSignUp:
+        return 'Bestätigen';
+      case AuthMode.forgotPassword:
+        return 'Reset-Code senden';
+      case AuthMode.confirmForgotPassword:
+        return 'Passwort zurücksetzen';
+    }
+  }
+
+  bool _isSuccessMessage(String msg) {
+    final lower = msg.toLowerCase();
+    return lower.contains('erfolgreich') ||
+        lower.contains('bestätigt') ||
+        lower.contains('successful');
+  }
+
+  List<Widget> _buildFormFields(LoginViewModel vm) {
+    switch (vm.authMode) {
+      case AuthMode.signIn:
+        return [
+          _emailField(),
+          const SizedBox(height: 16),
+          _passwordField(),
+        ];
+
+      case AuthMode.signUp:
+        return [
+          _displayNameField(),
+          const SizedBox(height: 16),
+          _emailField(),
+          const SizedBox(height: 16),
+          _passwordField(),
+        ];
+
+      case AuthMode.confirmSignUp:
+        return [
+          _emailField(initialValue: vm.pendingEmail),
+          const SizedBox(height: 16),
+          _codeField(label: 'Bestätigungscode'),
+        ];
+
+      case AuthMode.forgotPassword:
+        return [
+          _emailField(),
+        ];
+
+      case AuthMode.confirmForgotPassword:
+        return [
+          _emailField(initialValue: vm.pendingEmail),
+          const SizedBox(height: 16),
+          _codeField(label: 'Reset-Code'),
+          const SizedBox(height: 16),
+          _newPasswordField(),
+        ];
+    }
+  }
+
+  List<Widget> _buildSecondaryActions(LoginViewModel vm) {
+    final widgets = <Widget>[];
+
+    switch (vm.authMode) {
+      case AuthMode.signIn:
+        widgets.add(TextButton(
+          onPressed:
+              vm.isLoading ? null : () => vm.switchMode(AuthMode.signUp),
+          child: const Text('Noch kein Konto? Registrieren'),
+        ));
+        widgets.add(TextButton(
+          onPressed: vm.isLoading
+              ? null
+              : () => vm.switchMode(AuthMode.forgotPassword),
+          child: const Text('Passwort vergessen?'),
+        ));
+        widgets.add(TextButton(
+          onPressed: vm.isLoading ? null : () => vm.skipLogin(),
+          child: const Text('Skip Login (Dev)'),
+        ));
+        break;
+
+      case AuthMode.signUp:
+        widgets.add(TextButton(
+          onPressed:
+              vm.isLoading ? null : () => vm.switchMode(AuthMode.signIn),
+          child: const Text('Bereits ein Konto? Anmelden'),
+        ));
+        break;
+
+      case AuthMode.confirmSignUp:
+        widgets.add(TextButton(
+          onPressed:
+              vm.isLoading ? null : () => vm.switchMode(AuthMode.signIn),
+          child: const Text('Zurück zum Login'),
+        ));
+        break;
+
+      case AuthMode.forgotPassword:
+        widgets.add(TextButton(
+          onPressed:
+              vm.isLoading ? null : () => vm.switchMode(AuthMode.signIn),
+          child: const Text('Zurück zum Login'),
+        ));
+        break;
+
+      case AuthMode.confirmForgotPassword:
+        widgets.add(TextButton(
+          onPressed:
+              vm.isLoading ? null : () => vm.switchMode(AuthMode.signIn),
+          child: const Text('Zurück zum Login'),
+        ));
+        break;
+    }
+
+    return widgets;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Form field widgets
+  // ---------------------------------------------------------------------------
+
+  Widget _emailField({String? initialValue}) {
+    if (initialValue != null &&
+        initialValue.isNotEmpty &&
+        _emailController.text.isEmpty) {
+      _emailController.text = initialValue;
+    }
+    return TextField(
+      controller: _emailController,
+      keyboardType: TextInputType.emailAddress,
+      decoration: const InputDecoration(
+        labelText: 'E-Mail',
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.email),
+      ),
+    );
+  }
+
+  Widget _passwordField() {
+    return TextField(
+      controller: _passwordController,
+      obscureText: true,
+      decoration: const InputDecoration(
+        labelText: 'Passwort',
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.lock),
+      ),
+    );
+  }
+
+  Widget _displayNameField() {
+    return TextField(
+      controller: _displayNameController,
+      decoration: const InputDecoration(
+        labelText: 'Anzeigename (optional)',
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.person),
+      ),
+    );
+  }
+
+  Widget _codeField({required String label}) {
+    return TextField(
+      controller: _codeController,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        prefixIcon: const Icon(Icons.pin),
+      ),
+    );
+  }
+
+  Widget _newPasswordField() {
+    return TextField(
+      controller: _newPasswordController,
+      obscureText: true,
+      decoration: const InputDecoration(
+        labelText: 'Neues Passwort',
+        border: OutlineInputBorder(),
+        prefixIcon: Icon(Icons.lock_reset),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Submit
+  // ---------------------------------------------------------------------------
+
   void _submit(LoginViewModel vm) {
-    if (vm.isRegistering) {
-      vm.register(
-        _usernameController.text.trim(),
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
-    } else {
-      vm.login(_emailController.text.trim(), _passwordController.text);
+    switch (vm.authMode) {
+      case AuthMode.signIn:
+        vm.signIn(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+        break;
+
+      case AuthMode.signUp:
+        vm.signUp(
+          _emailController.text.trim(),
+          _passwordController.text,
+          displayName: _displayNameController.text.trim().isNotEmpty
+              ? _displayNameController.text.trim()
+              : null,
+        );
+        break;
+
+      case AuthMode.confirmSignUp:
+        vm.confirmSignUp(
+          _emailController.text.trim(),
+          _codeController.text.trim(),
+        );
+        break;
+
+      case AuthMode.forgotPassword:
+        vm.forgotPassword(_emailController.text.trim());
+        break;
+
+      case AuthMode.confirmForgotPassword:
+        vm.confirmForgotPassword(
+          _emailController.text.trim(),
+          _codeController.text.trim(),
+          _newPasswordController.text,
+        );
+        break;
     }
   }
 }
