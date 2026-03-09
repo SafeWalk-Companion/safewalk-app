@@ -41,19 +41,88 @@ interface PlatformTrustedContactResponse {
   data?: Record<string, unknown>;
 }
 
-interface TrustedContact {
+interface PlatformContact {
   contactId: string;
-  safeWalkId: string;
-  displayName?: string;
+  status: string;
+  targetSafeWalkId: string;
+  requesterSafeWalkId: string;
+  platformId: string;
   locationSharing: boolean;
   sosSharing: boolean;
+  direction: 'outgoing' | 'incoming';
+  displayName?: string;
+  webhookUrl?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PlatformListContactsResponse {
   success: boolean;
   data: {
-    contacts: TrustedContact[];
+    contacts: PlatformContact[];
   };
+}
+
+/** Frontend-facing contact shape matching the Flutter Contact model. */
+interface FrontendContact {
+  id: string;
+  name: string;
+  isApproved: boolean;
+  sharesLocation: boolean;
+  sharesSOS: boolean;
+  isActivelyTracking: boolean;
+  sharesBackLocation: boolean;
+  sharesBackSOS: boolean;
+  avatarUrl: string | null;
+}
+
+/**
+ * Returns the partner's safeWalkId for a contact entry:
+ * - outgoing: the user initiated the connection → partner is targetSafeWalkId
+ * - incoming: the partner initiated the connection → partner is requesterSafeWalkId
+ */
+function getPartnerSafeWalkId(c: PlatformContact): string {
+  return c.direction === 'outgoing' ? c.targetSafeWalkId : c.requesterSafeWalkId;
+}
+
+/**
+ * Merges platform contact entries (outgoing / incoming) into a deduplicated
+ * list of FrontendContacts grouped by partner safeWalkId.
+ *
+ * - outgoing entry  → populates sharesLocation / sharesSOS
+ * - incoming entry  → populates sharesBackLocation / sharesBackSOS
+ * - isApproved      → true when both directions exist (two-way)
+ * - id              → the outgoing contactId is preferred; falls back to incoming
+ */
+function buildFrontendContacts(platformContacts: PlatformContact[]): FrontendContact[] {
+  const byPartner = new Map<string, { outgoing?: PlatformContact; incoming?: PlatformContact }>();
+
+  for (const c of platformContacts) {
+    const partnerId = getPartnerSafeWalkId(c);
+    const entry = byPartner.get(partnerId) ?? {};
+    if (c.direction === 'outgoing') entry.outgoing = c;
+    else entry.incoming = c;
+    byPartner.set(partnerId, entry);
+  }
+
+  const contacts: FrontendContact[] = [];
+
+  for (const { outgoing, incoming } of byPartner.values()) {
+    const representative = outgoing ?? incoming!;
+    contacts.push({
+      id: representative.contactId,
+      name: representative.displayName ?? 'Unbenannte Kontaktperson',
+      isApproved: !!(outgoing && incoming),
+      sharesLocation: incoming?.locationSharing ?? false,
+      sharesSOS: incoming?.sosSharing ?? false,
+      isActivelyTracking: false,
+      sharesBackLocation: outgoing?.locationSharing ?? false,
+      sharesBackSOS: outgoing?.sosSharing ?? false,
+      avatarUrl: null,
+    });
+  }
+
+  return contacts;
 }
 
 interface UpdateContactSettingsRequest {
@@ -362,7 +431,9 @@ async function handleListContacts(
       return jsonResponse(502, { error: 'Platform rejected contacts list request' });
     }
 
-    return jsonResponse(200, { contacts: platformResponse.data.contacts });
+    const rawContacts = platformResponse.data.contacts;
+    const contacts = buildFrontendContacts(rawContacts);
+    return jsonResponse(200, { contacts });
   } catch (error) {
     console.error('Error fetching contacts:', error);
     return jsonResponse(502, {
