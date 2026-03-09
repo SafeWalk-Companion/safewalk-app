@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import 'package:safewalk/app.dart';
 import 'package:safewalk/services/api_service.dart';
+import 'package:safewalk/services/auth_service.dart';
 import 'package:safewalk/viewmodels/home_viewmodel.dart';
 import 'package:safewalk/viewmodels/login_viewmodel.dart';
 import 'package:safewalk/viewmodels/map_viewmodel.dart';
@@ -18,8 +19,11 @@ import 'package:safewalk/viewmodels/contacts_viewmodel.dart';
 import 'package:safewalk/viewmodels/settings_viewmodel.dart';
 
 void main() {
-  // Shared service instance so all ViewModels use the same API client.
-  final apiService = ApiService();
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Shared services so all ViewModels use the same instances.
+  final authService = AuthService();
+  final apiService = ApiService(authService: authService);
 
   runApp(
     MultiProvider(

@@ -483,12 +483,14 @@ async function handleDeleteContact(
   }
 
   const deleteUrl = `${platformBaseDomain}/contacts/${encodeURIComponent(contactId)}`;
+  const payload: PlatformDeleteContactPayload = { safeWalkId };
 
   try {
     const platformResponse = await sendRequest<PlatformDeleteContactResponse>(
       deleteUrl,
       'DELETE',
       apiKey,
+      payload,
     );
 
     if (!platformResponse.success) {
