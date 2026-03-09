@@ -132,12 +132,6 @@ export class AppBackendStack extends cdk.Stack {
     /* API Routes */
 
     httpApi.addRoutes({
-      path: '/register',
-      methods: [apigateway.HttpMethod.POST],
-      integration: userLambdaIntegration,
-    });
-
-    httpApi.addRoutes({
       path: '/register/platform',
       methods: [apigateway.HttpMethod.POST],
       integration: platformLambdaIntegration,
