@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -20,6 +21,8 @@ class _LayerVisualStyle {
   final IconData icon;
   final Color color;
 }
+
+enum _ContactFreshness { fresh, stale }
 
 _LayerVisualStyle _layerVisualStyle(String layerKey) {
   switch (layerKey) {
@@ -87,15 +90,27 @@ class _MapScreenState extends State<MapScreen> {
   PointAnnotationManager? _pointAnnotationManager;
   CircleAnnotationManager? _reportPinAnnotationManager;
   PointAnnotationManager? _communityReportAnnotationManager;
+  PointAnnotationManager? _contactAnnotationManager;
+  PointAnnotationManager? _sosAnnotationManager;
+  CircleAnnotationManager? _sosHaloAnnotationManager;
   bool _cameraUpdatesEnabled = false;
   bool _initialCameraSynced = false;
 
   List<MapLayerEntry>? _lastRenderedEntries;
   List<CommunityReportItem>? _lastRenderedCommunityReports;
+  List<ContactLiveLocation>? _lastRenderedContacts;
+  List<ActiveSosLocation>? _lastRenderedSos;
+  List<CircleAnnotation> _sosHaloAnnotations = const [];
   LatLng? _lastReportTapLocation;
   LatLng? _lastSearchLocation;
   int _lastRenderGeneration = 0;
   final Map<String, Uint8List> _markerIconCache = <String, Uint8List>{};
+
+  /// Smooth SOS halo pulse — uses a high-frequency Ticker via Timer.periodic.
+  Timer? _sosPulseTimer;
+  double _sosPulseT = 0.0;
+  static const Duration _sosPulseTickInterval = Duration(milliseconds: 33);
+  static const Duration _sosPulseDuration = Duration(milliseconds: 1400);
 
   @override
   void initState() {
@@ -145,6 +160,20 @@ class _MapScreenState extends State<MapScreen> {
       _lastRenderedCommunityReports = communityReports;
       _syncCommunityReportAnnotations(vm);
     }
+
+    final contacts = vm.contactLocations;
+    if (!_contactsEqual(contacts, _lastRenderedContacts)) {
+      _lastRenderedContacts = List<ContactLiveLocation>.unmodifiable(contacts);
+      _syncContactAnnotations(vm);
+    }
+
+    final activeSos = vm.activeSosLocations;
+    if (!_sosEqual(activeSos, _lastRenderedSos)) {
+      _lastRenderedSos = List<ActiveSosLocation>.unmodifiable(activeSos);
+      _syncSosAnnotations(vm);
+    }
+
+    _ensureSosPulseTimer(activeSos.isNotEmpty);
   }
 
   bool _listEquals(List<MapLayerEntry>? a, List<MapLayerEntry>? b) {
@@ -178,9 +207,34 @@ class _MapScreenState extends State<MapScreen> {
     return true;
   }
 
+  bool _contactsEqual(
+    List<ContactLiveLocation>? a,
+    List<ContactLiveLocation>? b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  bool _sosEqual(
+    List<ActiveSosLocation>? a,
+    List<ActiveSosLocation>? b,
+  ) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   @override
   void dispose() {
     context.read<MapViewModel>().removeListener(_onViewModelChanged);
+    _sosPulseTimer?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _markerIconCache.clear();
@@ -201,8 +255,26 @@ class _MapScreenState extends State<MapScreen> {
         child: Stack(
           children: [
             Positioned.fill(child: _buildMap(vm)),
-            Positioned(top: 8, left: 16, right: 16, child: _buildTopSearch(vm)),
-            Positioned(top: 94, right: 16, child: _buildMapControls(vm)),
+            // SOS banner sits ABOVE the search bar so it's always the topmost
+            // navigation element when an alarm is active.
+            if (vm.hasActiveSos)
+              Positioned(
+                top: 4,
+                left: 16,
+                right: 16,
+                child: _buildSosBanner(vm),
+              ),
+            Positioned(
+              top: vm.hasActiveSos ? 76 : 8,
+              left: 16,
+              right: 16,
+              child: _buildTopSearch(vm),
+            ),
+            Positioned(
+              top: vm.hasActiveSos ? 162 : 94,
+              right: 16,
+              child: _buildMapControls(vm),
+            ),
             Positioned(
               left: 16,
               right: 16,
@@ -258,6 +330,14 @@ class _MapScreenState extends State<MapScreen> {
     _reportPinAnnotationManager = await map.annotations
         .createCircleAnnotationManager();
     _communityReportAnnotationManager = await map.annotations
+        .createPointAnnotationManager();
+    // Contact + SOS layers must be on top of POIs / community reports.
+    _contactAnnotationManager = await map.annotations
+        .createPointAnnotationManager();
+    // Pulse halo sits below the SOS icon.
+    _sosHaloAnnotationManager = await map.annotations
+        .createCircleAnnotationManager();
+    _sosAnnotationManager = await map.annotations
         .createPointAnnotationManager();
 
     await map.scaleBar.updateSettings(ScaleBarSettings(enabled: false));
@@ -337,6 +417,40 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final vm = context.read<MapViewModel>();
+
+    // Priority: SOS alarms first, then live contacts, then community reports.
+    final tappedSos = _findNearestSos(
+      vm.activeSosLocations,
+      tappedLat,
+      tappedLng,
+    );
+    if (tappedSos != null) {
+      _showContactDetail(
+        title: 'SOS — ${tappedSos.victimDisplayName}',
+        displayName: tappedSos.victimDisplayName,
+        updatedAt: tappedSos.updatedAt,
+        accuracy: tappedSos.accuracy,
+        isSos: true,
+      );
+      return;
+    }
+
+    final tappedContact = _findNearestContact(
+      vm.contactLocations,
+      tappedLat,
+      tappedLng,
+    );
+    if (tappedContact != null) {
+      _showContactDetail(
+        title: tappedContact.displayName,
+        displayName: tappedContact.displayName,
+        updatedAt: tappedContact.updatedAt,
+        accuracy: tappedContact.accuracy,
+        isSos: false,
+      );
+      return;
+    }
+
     final tappedReport = _findNearestCommunityReport(
       vm.communityReports,
       tappedLat,
@@ -345,6 +459,50 @@ class _MapScreenState extends State<MapScreen> {
     if (tappedReport != null) {
       _showCommunityReportDetail(tappedReport);
     }
+  }
+
+  ContactLiveLocation? _findNearestContact(
+    List<ContactLiveLocation> contacts,
+    double lat,
+    double lng,
+  ) {
+    if (contacts.isEmpty) return null;
+    const thresholdDeg = 0.0006;
+    ContactLiveLocation? closest;
+    double closestDist = double.infinity;
+    for (final c in contacts) {
+      final dLat = (c.lat - lat).abs();
+      final dLng = (c.lng - lng).abs();
+      if (dLat > thresholdDeg || dLng > thresholdDeg) continue;
+      final dist = dLat * dLat + dLng * dLng;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = c;
+      }
+    }
+    return closest;
+  }
+
+  ActiveSosLocation? _findNearestSos(
+    List<ActiveSosLocation> alarms,
+    double lat,
+    double lng,
+  ) {
+    if (alarms.isEmpty) return null;
+    const thresholdDeg = 0.0008;
+    ActiveSosLocation? closest;
+    double closestDist = double.infinity;
+    for (final s in alarms) {
+      final dLat = (s.lat - lat).abs();
+      final dLng = (s.lng - lng).abs();
+      if (dLat > thresholdDeg || dLng > thresholdDeg) continue;
+      final dist = dLat * dLat + dLng * dLng;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = s;
+      }
+    }
+    return closest;
   }
 
   CommunityReportItem? _findNearestCommunityReport(
@@ -451,6 +609,119 @@ class _MapScreenState extends State<MapScreen> {
         .toList(growable: false);
 
     await mgr.createMulti(options);
+  }
+
+  void _showContactDetail({
+    required String title,
+    required String displayName,
+    required DateTime updatedAt,
+    required double accuracy,
+    required bool isSos,
+  }) {
+    if (!mounted) return;
+
+    final initials = _initialsFor(displayName);
+    final age = DateTime.now().difference(updatedAt);
+    final ringColor = isSos
+        ? const Color(0xFFB91C1C)
+        : (age <= MapViewModel.locationStaleAfter
+              ? const Color(0xFF16A34A)
+              : const Color(0xFFCA8A04));
+    final fillColor = isSos
+        ? const Color(0xFFDC2626)
+        : (age <= MapViewModel.locationStaleAfter
+              ? _kMapPrimary
+              : const Color(0xFF94A3B8));
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: fillColor,
+                    border: Border.all(color: ringColor, width: 3),
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (isSos) ...[
+                  const Text(
+                    'AKTIVER SOS-ALARM',
+                    style: TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                _DetailRow(
+                  icon: Icons.access_time_rounded,
+                  label: 'Letztes Update',
+                  value: 'vor ${_formatAge(age)}',
+                ),
+                const SizedBox(height: 6),
+                _DetailRow(
+                  icon: Icons.gps_fixed_rounded,
+                  label: 'Genauigkeit',
+                  value: '±${accuracy.toStringAsFixed(0)} m',
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _kMapPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'Schliessen',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showCommunityReportDetail(CommunityReportItem report) {
@@ -635,6 +906,273 @@ class _MapScreenState extends State<MapScreen> {
     return markerBytes;
   }
 
+  // ── Contact / SOS markers ────────────────────────────────────────────────
+
+  Future<void> _syncContactAnnotations(MapViewModel vm) async {
+    final mgr = _contactAnnotationManager;
+    if (mgr == null) return;
+
+    await mgr.deleteAll();
+
+    final contacts = vm.contactLocations;
+    if (contacts.isEmpty) return;
+
+    final now = DateTime.now();
+    final options = <PointAnnotationOptions>[];
+    for (final contact in contacts) {
+      final age = contact.ageFrom(now);
+      final freshness = _freshnessFor(age);
+      final initials = _initialsFor(contact.displayName);
+      final icon = await _buildContactAvatarIcon(
+        initials: initials,
+        freshness: freshness,
+      );
+      options.add(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(contact.lng, contact.lat),
+          ),
+          image: icon,
+          iconAnchor: IconAnchor.CENTER,
+          iconSize: 1,
+          symbolSortKey: 1000,
+        ),
+      );
+    }
+
+    if (options.isNotEmpty) {
+      await mgr.createMulti(options);
+    }
+  }
+
+  Future<void> _syncSosAnnotations(MapViewModel vm) async {
+    final mgr = _sosAnnotationManager;
+    final haloMgr = _sosHaloAnnotationManager;
+    if (mgr == null || haloMgr == null) return;
+
+    await mgr.deleteAll();
+    await haloMgr.deleteAll();
+    _sosHaloAnnotations = const [];
+
+    final sosList = vm.activeSosLocations;
+    if (sosList.isEmpty) return;
+
+    // Static initials avatar per victim — same shape/colors as contact avatar
+    // but in the danger palette.
+    final pointOptions = <PointAnnotationOptions>[];
+    for (final sos in sosList) {
+      final initials = _initialsFor(sos.victimDisplayName);
+      final icon = await _buildSosAvatarIcon(initials: initials);
+      pointOptions.add(
+        PointAnnotationOptions(
+          geometry: Point(coordinates: Position(sos.lng, sos.lat)),
+          image: icon,
+          iconAnchor: IconAnchor.CENTER,
+          iconSize: 1,
+          symbolSortKey: 2000,
+        ),
+      );
+    }
+
+    // Halo circles (initial state) — animated by the pulse ticker.
+    final haloOptions = sosList
+        .map(
+          (sos) => CircleAnnotationOptions(
+            geometry: Point(coordinates: Position(sos.lng, sos.lat)),
+            circleRadius: _sosHaloRadiusForT(_sosPulseT),
+            circleColor: const Color(0xFFEF4444).toARGB32(),
+            circleOpacity: _sosHaloOpacityForT(_sosPulseT),
+            circleStrokeWidth: 0,
+          ),
+        )
+        .toList(growable: false);
+
+    final created = <CircleAnnotation>[];
+    for (final opt in haloOptions) {
+      final ann = await haloMgr.create(opt);
+      created.add(ann);
+    }
+    _sosHaloAnnotations = created;
+
+    await mgr.createMulti(pointOptions);
+  }
+
+  void _ensureSosPulseTimer(bool active) {
+    if (active) {
+      if (_sosPulseTimer != null) return;
+      final start = DateTime.now();
+      _sosPulseTimer = Timer.periodic(_sosPulseTickInterval, (_) {
+        if (!mounted) return;
+        final elapsed = DateTime.now().difference(start).inMilliseconds;
+        _sosPulseT =
+            (elapsed % _sosPulseDuration.inMilliseconds) /
+            _sosPulseDuration.inMilliseconds;
+        unawaited(_animateSosHalo());
+      });
+    } else {
+      _sosPulseTimer?.cancel();
+      _sosPulseTimer = null;
+    }
+  }
+
+  Future<void> _animateSosHalo() async {
+    final haloMgr = _sosHaloAnnotationManager;
+    if (haloMgr == null) return;
+    if (_sosHaloAnnotations.isEmpty) return;
+
+    final radius = _sosHaloRadiusForT(_sosPulseT);
+    final opacity = _sosHaloOpacityForT(_sosPulseT);
+
+    for (final annotation in _sosHaloAnnotations) {
+      annotation.circleRadius = radius;
+      annotation.circleOpacity = opacity;
+      try {
+        await haloMgr.update(annotation);
+      } catch (_) {
+        // Ignore transient update errors during teardown.
+      }
+    }
+  }
+
+  /// Smooth ease-out radius growth from 18 → 70 px.
+  double _sosHaloRadiusForT(double t) {
+    final eased = 1 - math.pow(1 - t, 2).toDouble();
+    return 18 + 52 * eased;
+  }
+
+  /// Smooth fade-out from 0.55 → 0.
+  double _sosHaloOpacityForT(double t) {
+    final eased = math.pow(1 - t, 1.6).toDouble();
+    return 0.55 * eased;
+  }
+
+  String _initialsFor(String name) {
+    final cleaned = name.trim();
+    if (cleaned.isEmpty) return '?';
+    final parts = cleaned.split(RegExp(r'\s+'));
+    if (parts.length >= 2 &&
+        parts.first.isNotEmpty &&
+        parts.last.isNotEmpty) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return cleaned[0].toUpperCase();
+  }
+
+  _ContactFreshness _freshnessFor(Duration age) {
+    if (age <= MapViewModel.locationStaleAfter) {
+      return _ContactFreshness.fresh;
+    }
+    return _ContactFreshness.stale;
+  }
+
+  Future<Uint8List> _buildContactAvatarIcon({
+    required String initials,
+    required _ContactFreshness freshness,
+  }) async {
+    final cacheKey = 'contact-avatar:${freshness.name}:$initials';
+    final cached = _markerIconCache[cacheKey];
+    if (cached != null) return cached;
+
+    final ringColor = switch (freshness) {
+      _ContactFreshness.fresh => const Color(0xFF16A34A),
+      _ContactFreshness.stale => const Color(0xFFCA8A04),
+    };
+    final fillColor = switch (freshness) {
+      _ContactFreshness.fresh => _kMapPrimary,
+      _ContactFreshness.stale => const Color(0xFF94A3B8),
+    };
+
+    final bytes = await _renderInitialsAvatar(
+      initials: initials,
+      fillColor: fillColor,
+      ringColor: ringColor,
+    );
+    _markerIconCache[cacheKey] = bytes;
+    return bytes;
+  }
+
+  Future<Uint8List> _buildSosAvatarIcon({required String initials}) async {
+    final cacheKey = 'sos-avatar:$initials';
+    final cached = _markerIconCache[cacheKey];
+    if (cached != null) return cached;
+
+    final bytes = await _renderInitialsAvatar(
+      initials: initials,
+      fillColor: const Color(0xFFDC2626),
+      ringColor: const Color(0xFFB91C1C),
+    );
+    _markerIconCache[cacheKey] = bytes;
+    return bytes;
+  }
+
+  Future<Uint8List> _renderInitialsAvatar({
+    required String initials,
+    required Color fillColor,
+    required Color ringColor,
+  }) async {
+    const size = 96.0;
+    const center = Offset(size / 2, size / 2);
+    const radius = 32.0;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(
+      recorder,
+      const Rect.fromLTWH(0, 0, size, size),
+    );
+
+    final shadowPaint = Paint()
+      ..color = const Color(0x33000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+      ..isAntiAlias = true;
+    canvas.drawCircle(center.translate(0, 2), radius, shadowPaint);
+
+    final outerWhitePaint = Paint()
+      ..color = Colors.white
+      ..isAntiAlias = true;
+    canvas.drawCircle(center, radius + 4, outerWhitePaint);
+
+    final ringPaint = Paint()
+      ..color = ringColor
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+    canvas.drawCircle(center, radius + 2, ringPaint);
+
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..isAntiAlias = true;
+    canvas.drawCircle(center, radius, fillPaint);
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
+          fontSize: 24,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        center.dx - textPainter.width / 2,
+        center.dy - textPainter.height / 2,
+      ),
+    );
+
+    final image = await recorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      throw StateError('Avatar-Icon konnte nicht erstellt werden.');
+    }
+    return byteData.buffer.asUint8List();
+  }
+
   Future<Uint8List> _buildMarkerIcon({
     required IconData icon,
     required Color iconColor,
@@ -716,6 +1254,111 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     return byteData.buffer.asUint8List();
+  }
+
+  Widget _buildSosBanner(MapViewModel vm) {
+    final alarms = vm.activeSosLocations;
+    if (alarms.isEmpty) return const SizedBox.shrink();
+
+    final primary = alarms.first;
+    final additional = alarms.length - 1;
+    final age = primary.ageFrom();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => _focusOnSos(primary),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.6, end: 1.0),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+          builder: (context, value, child) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                color: Color.lerp(
+                  const Color(0xFFB91C1C),
+                  const Color(0xFFEF4444),
+                  value,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x55EF4444),
+                    blurRadius: 16,
+                    offset: Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: child,
+            );
+          },
+          child: Row(
+            children: [
+              const Icon(
+                Icons.priority_high_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      additional > 0
+                          ? 'SOS – ${primary.victimDisplayName} (+$additional weitere)'
+                          : 'SOS – ${primary.victimDisplayName}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Letztes Update vor ${_formatAge(age)}',
+                      style: const TextStyle(
+                        color: Color(0xFFFEE2E2),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.my_location_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _focusOnSos(ActiveSosLocation sos) async {
+    final map = _mapboxMap;
+    if (map == null) return;
+    await map.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(sos.lng, sos.lat)),
+        zoom: 16,
+      ),
+      MapAnimationOptions(duration: 700),
+    );
+  }
+
+  String _formatAge(Duration age) {
+    if (age.isNegative || age.inSeconds < 5) return 'jetzt';
+    if (age.inSeconds < 60) return '${age.inSeconds} s';
+    if (age.inMinutes < 60) return '${age.inMinutes} min';
+    final hours = age.inHours;
+    return '$hours h';
   }
 
   Widget _buildTopSearch(MapViewModel vm) {
@@ -1414,6 +2057,46 @@ class _ReportSheetState extends State<_ReportSheet> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF64748B)),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 14,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

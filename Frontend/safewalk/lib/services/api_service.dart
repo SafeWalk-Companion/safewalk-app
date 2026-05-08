@@ -531,6 +531,22 @@ class ApiService {
     return _authenticatedRequest(() => _client.delete(ApiConstants.location));
   }
 
+  /// Retrieves the latest live locations of every trusted contact who is
+  /// currently sharing their location with the authenticated user.
+  Future<ApiResult> getContactLiveLocations() async {
+    return _authenticatedRequest(
+      () => _client.get(ApiConstants.locationContacts),
+    );
+  }
+
+  /// Retrieves SOS alarms received by the current user (i.e. alarms where the
+  /// user is a target / trusted contact).
+  Future<ApiResult> getReceivedSosAlarms() async {
+    return _authenticatedRequest(
+      () => _client.get(ApiConstants.sosReceived),
+    );
+  }
+
   // ===========================================================================
   // PUSH NOTIFICATIONS (JWT required)
   // ===========================================================================

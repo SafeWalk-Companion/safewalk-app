@@ -97,6 +97,12 @@ class ApiConstants {
   /// DELETE – Stop sharing my live location.
   static const String location = '/location';
 
+  /// GET – Retrieve live locations of contacts who share with me.
+  static const String locationContacts = '/location/contacts';
+
+  /// GET – List SOS alarms targeting the current user.
+  static const String sosReceived = '/sos/received';
+
   // ---------------------------------------------------------------------------
   // Push notification endpoints (JWT required)
   // ---------------------------------------------------------------------------
