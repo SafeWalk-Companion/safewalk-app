@@ -7,7 +7,7 @@ class ApiConstants {
 
   /// Base URL of the SafeWalk backend API.
   static const String baseUrl =
-      'https://r7fu37l4m5.execute-api.eu-central-1.amazonaws.com';
+      'https://1p741stnu2.execute-api.eu-central-1.amazonaws.com';
 
   /// Default timeout duration for HTTP requests.
   static const Duration defaultTimeout = Duration(seconds: 30);
@@ -86,8 +86,7 @@ class ApiConstants {
   static String sosPropagate(String sosId) => '/sos/$sosId/propagate';
 
   /// Returns the path for a specific map report: /map-data/reports/{reportId}
-  static String mapReportById(String reportId) =>
-      '/map-data/reports/$reportId';
+  static String mapReportById(String reportId) => '/map-data/reports/$reportId';
 
   // ---------------------------------------------------------------------------
   // Live location endpoints (JWT required)
