@@ -156,6 +156,27 @@ class MapViewModel extends ChangeNotifier {
 
   Timer? _searchTimer;
 
+  // ── Contact live locations & received SOS ────────────────────────────────
+  Timer? _socialPollTimer;
+  bool _isPollingSocial = false;
+  bool _isSocialPollInFlight = false;
+  static const Duration _socialPollInterval = Duration(seconds: 10);
+
+  /// Threshold (since `updatedAt`) above which a contact location is treated
+  /// as stale (rendered semi-transparent).
+  static const Duration locationStaleAfter = Duration(seconds: 60);
+
+  /// Threshold above which a contact location is dropped client-side. Backend
+  /// already drops expired entries; this guards against stale cached lists.
+  static const Duration locationDiscardAfter = Duration(minutes: 3);
+
+  List<ContactLiveLocation> _contactLocations = const [];
+  List<ActiveSosLocation> _activeSosLocations = const [];
+
+  List<ContactLiveLocation> get contactLocations => _contactLocations;
+  List<ActiveSosLocation> get activeSosLocations => _activeSosLocations;
+  bool get hasActiveSos => _activeSosLocations.isNotEmpty;
+
   int _activeMapDataRequestId = 0;
   int _renderGeneration = 0;
 
@@ -281,6 +302,8 @@ class MapViewModel extends ChangeNotifier {
 
     _isInitializing = false;
     notifyListeners();
+
+    startSocialPolling();
   }
 
   Future<void> loadMapData({
@@ -672,9 +695,143 @@ class MapViewModel extends ChangeNotifier {
     return fallback ?? 'Ein unbekannter Fehler ist aufgetreten.';
   }
 
+  // ── Social polling ────────────────────────────────────────────────────────
+
+  /// Starts periodic polling for trusted-contact live locations and received
+  /// SOS alarms. Safe to call multiple times.
+  void startSocialPolling() {
+    if (_isPollingSocial) return;
+    _isPollingSocial = true;
+
+    // Run an immediate refresh so the map shows data without waiting for the
+    // first timer tick.
+    unawaited(refreshSocialData());
+
+    _socialPollTimer?.cancel();
+    _socialPollTimer = Timer.periodic(_socialPollInterval, (_) {
+      unawaited(refreshSocialData());
+    });
+  }
+
+  void stopSocialPolling() {
+    _isPollingSocial = false;
+    _socialPollTimer?.cancel();
+    _socialPollTimer = null;
+  }
+
+  /// One-shot refresh of contact locations and received SOS alarms. Both
+  /// requests run in parallel; partial failures are logged but do not prevent
+  /// the other dataset from updating.
+  Future<void> refreshSocialData() async {
+    if (_isSocialPollInFlight) return;
+    _isSocialPollInFlight = true;
+    try {
+      final results = await Future.wait([
+        _fetchContactLocations(),
+        _fetchActiveSosLocations(),
+      ]);
+
+      final newContacts = results[0] as List<ContactLiveLocation>?;
+      final newSos = results[1] as List<ActiveSosLocation>?;
+
+      var changed = false;
+      if (newContacts != null) {
+        final filtered = _filterFreshContacts(newContacts);
+        if (!_listEquals(_contactLocations, filtered)) {
+          _contactLocations = filtered;
+          changed = true;
+        }
+      }
+      if (newSos != null) {
+        if (!_listEquals(_activeSosLocations, newSos)) {
+          _activeSosLocations = newSos;
+          changed = true;
+        }
+      }
+
+      if (changed) notifyListeners();
+    } finally {
+      _isSocialPollInFlight = false;
+    }
+  }
+
+  Future<List<ContactLiveLocation>?> _fetchContactLocations() async {
+    final result = await _apiService.getContactLiveLocations();
+    if (!result.isSuccess) {
+      debugPrint(
+        '[Map] getContactLiveLocations failed '
+        '(${result.statusCode}): ${result.message ?? 'Unknown error'}',
+      );
+      return null;
+    }
+
+    final data = result.data;
+    if (data is! Map<String, dynamic>) return const [];
+    final list = data['locations'];
+    if (list is! List) return const [];
+
+    final parsed = <ContactLiveLocation>[];
+    for (final raw in list) {
+      if (raw is Map<String, dynamic>) {
+        final entry = ContactLiveLocation.fromJson(raw);
+        if (entry != null) parsed.add(entry);
+      }
+    }
+    return parsed;
+  }
+
+  Future<List<ActiveSosLocation>?> _fetchActiveSosLocations() async {
+    final result = await _apiService.getReceivedSosAlarms();
+    if (!result.isSuccess) {
+      debugPrint(
+        '[Map] getReceivedSosAlarms failed '
+        '(${result.statusCode}): ${result.message ?? 'Unknown error'}',
+      );
+      return null;
+    }
+
+    final data = result.data;
+    List<dynamic>? rawList;
+    if (data is Map<String, dynamic>) {
+      final inner = data['data'];
+      if (inner is List) rawList = inner;
+    } else if (data is List) {
+      rawList = data;
+    }
+    if (rawList == null) return const [];
+
+    final parsed = <ActiveSosLocation>[];
+    for (final raw in rawList) {
+      if (raw is Map<String, dynamic>) {
+        final entry = ActiveSosLocation.fromJson(raw);
+        if (entry != null) parsed.add(entry);
+      }
+    }
+    return parsed;
+  }
+
+  List<ContactLiveLocation> _filterFreshContacts(
+    List<ContactLiveLocation> input,
+  ) {
+    final now = DateTime.now();
+    return input
+        .where((c) => c.ageFrom(now) <= locationDiscardAfter)
+        .toList(growable: false);
+  }
+
+  bool _listEquals<T>(List<T> a, List<T> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   @override
   void dispose() {
     _searchTimer?.cancel();
+    stopSocialPolling();
     super.dispose();
   }
 }
