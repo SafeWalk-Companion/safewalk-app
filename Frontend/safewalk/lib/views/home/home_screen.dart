@@ -60,8 +60,7 @@ class _HomeView extends StatelessWidget {
             ? 'Dein Standort wird mit deinen Notfallkontakten geteilt'
             : 'Dein Standort wird aktuell nicht geteilt');
 
-    final headphonesOn =
-        context.watch<HeadphoneService>().isConnected;
+    final headphonesOn = context.watch<HeadphoneService>().isConnected;
 
     return Container(
       key: const ValueKey('home-state'),
@@ -81,7 +80,7 @@ class _HomeView extends StatelessWidget {
               ),
               _HeadphoneChip(visible: headphonesOn),
               const Text(
-                'Geringes\nGefahrenpotenzial',
+                'Dein\nSicherheits-Begleiter',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: _kPurpleText,
@@ -1015,8 +1014,10 @@ class _HeadphoneChip extends StatelessWidget {
         curve: Curves.easeInOut,
         child: visible
             ? Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFF3E0),
                   borderRadius: BorderRadius.circular(999),

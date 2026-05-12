@@ -522,7 +522,7 @@ class _SharingCodePanelState extends State<_SharingCodePanel> {
                   ],
                   const SizedBox(height: 10),
                   const Text(
-                    'Teile diesen Code mit deinen Freunden, damit sie deinen '
+                    'Teile diesen Code mit vertrauenswürdigen Personen, damit sie deinen '
                     'Standort oder im Notfall dein SOS Alarm empfangen können.',
                     style: TextStyle(
                       fontSize: 14,
@@ -613,7 +613,7 @@ class _SharingCodePanelState extends State<_SharingCodePanel> {
             ),
             const SizedBox(height: 10),
             const Text(
-              'Gib hier den Code eines Freundes ein, um seinen/ihren '
+              'Gib hier den Code einer vertrauenswürdigen Person ein, um seinen/ihren '
               'Standort oder SOS Alarm zu erhalten.',
               style: TextStyle(fontSize: 14, color: _kTealMid, height: 1.43),
             ),

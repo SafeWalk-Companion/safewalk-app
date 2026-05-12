@@ -1,8 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:safewalk/models/tip.dart';
-import 'package:safewalk/services/headphone_service.dart';
 import 'package:safewalk/viewmodels/tips_viewmodel.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -52,7 +50,6 @@ class _TipsScreenState extends State<TipsScreen> {
                 ),
               ),
             ),
-            if (kDebugMode) _DebugHeadphoneToggle(vm: vm),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text(
@@ -376,41 +373,6 @@ class _TipIcon extends StatelessWidget {
       default:
         return Icons.tips_and_updates_outlined;
     }
-  }
-}
-
-class _DebugHeadphoneToggle extends StatelessWidget {
-  const _DebugHeadphoneToggle({required this.vm});
-
-  final TipsViewModel vm;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-      child: Row(
-        children: [
-          const Icon(Icons.bug_report, size: 14, color: _kMutedText),
-          const SizedBox(width: 6),
-          const Text(
-            'Debug:',
-            style: TextStyle(fontSize: 12, color: _kMutedText),
-          ),
-          const SizedBox(width: 8),
-          Switch(
-            value: vm.headphonesConnected,
-            activeColor: _kPrimary,
-            onChanged: (value) {
-              context.read<HeadphoneService>().debugSetConnected(value);
-            },
-          ),
-          const Text(
-            'Kopfhörer simulieren',
-            style: TextStyle(fontSize: 12, color: _kMutedText),
-          ),
-        ],
-      ),
-    );
   }
 }
 
