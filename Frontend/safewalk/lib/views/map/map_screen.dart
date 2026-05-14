@@ -252,15 +252,6 @@ class _MapScreenState extends State<MapScreen> {
         child: Stack(
           children: [
             Positioned.fill(child: _buildMap(vm)),
-            // SOS banner sits ABOVE the search bar so it's always the topmost
-            // navigation element when an alarm is active.
-            if (vm.hasActiveSos)
-              Positioned(
-                top: 4,
-                left: 16,
-                right: 16,
-                child: _buildSosBanner(vm),
-              ),
             Positioned(
               top: vm.hasActiveSos ? 76 : 8,
               left: 16,
@@ -1408,103 +1399,6 @@ class _MapScreenState extends State<MapScreen> {
     return byteData.buffer.asUint8List();
   }
 
-  Widget _buildSosBanner(MapViewModel vm) {
-    final alarms = vm.activeSosLocations;
-    if (alarms.isEmpty) return const SizedBox.shrink();
-
-    final primary = alarms.first;
-    final additional = alarms.length - 1;
-    final age = primary.ageFrom();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => _focusOnSos(primary),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.6, end: 1.0),
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeInOut,
-          builder: (context, value, child) {
-            return Container(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              decoration: BoxDecoration(
-                color: Color.lerp(
-                  const Color(0xFFB91C1C),
-                  const Color(0xFFEF4444),
-                  value,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x55EF4444),
-                    blurRadius: 16,
-                    offset: Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: child,
-            );
-          },
-          child: Row(
-            children: [
-              const Icon(
-                Icons.priority_high_rounded,
-                color: Colors.white,
-                size: 28,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      additional > 0
-                          ? 'SOS – ${primary.victimDisplayName} (+$additional weitere)'
-                          : 'SOS – ${primary.victimDisplayName}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Letztes Update vor ${_formatAge(age)}',
-                      style: const TextStyle(
-                        color: Color(0xFFFEE2E2),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(
-                Icons.my_location_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _focusOnSos(ActiveSosLocation sos) async {
-    final map = _mapboxMap;
-    if (map == null) return;
-    await map.flyTo(
-      CameraOptions(
-        center: Point(coordinates: Position(sos.lng, sos.lat)),
-        zoom: 16,
-      ),
-      MapAnimationOptions(duration: 700),
-    );
-  }
-
   String _formatAge(Duration age) {
     if (age.isNegative || age.inSeconds < 5) return 'einem Moment';
     if (age.inSeconds < 60) return '${age.inSeconds} s';
@@ -2057,7 +1951,7 @@ class _ReportSheetState extends State<_ReportSheet> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Teile deine Erfahrung mit anderen',
+            'Teile deine Erfahrung mit anderen.',
             style: TextStyle(color: Color(0xFF64748B)),
           ),
           const SizedBox(height: 14),
