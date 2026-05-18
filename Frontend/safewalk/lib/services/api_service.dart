@@ -295,6 +295,11 @@ class ApiService {
     );
   }
 
+  /// Fetches runtime configuration values for the app (e.g. Mapbox token).
+  Future<ApiResult> getAppConfig() async {
+    return _authenticatedRequest(() => _client.get(ApiConstants.appConfig));
+  }
+
   /// Retrieves the current sharing code for the logged-in user.
   Future<ApiResult> getSharingCode() async {
     return _authenticatedRequest(() => _client.get(ApiConstants.sharingCode));
