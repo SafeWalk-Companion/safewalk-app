@@ -171,6 +171,8 @@ jobs:
 
       - name: Build Android APK
         uses: ./.github/workflows/actions/android-release
+        with:
+          firebase-env.json: ${{ secrets.FIREBASE_ENV_JSON }}
 
   deploy-infra:
     name: Deploy Infrastructure

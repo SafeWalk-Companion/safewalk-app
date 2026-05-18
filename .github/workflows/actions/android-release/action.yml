@@ -1,6 +1,10 @@
 name: Build Android APK
 description: Build Android APK for release
 
+inputs:
+  firebase-env-json:
+    required: true
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -23,7 +27,7 @@ jobs:
       - name: Prepare Firebase env
         working-directory: Frontend/safewalk
         env:
-          FIREBASE_ENV_JSON: ${{ secrets.FIREBASE_ENV_JSON }}
+          FIREBASE_ENV_JSON: ${{ inputs.firebase-env-json }}
         run: |
           if [ -z "$FIREBASE_ENV_JSON" ]; then
             echo "FIREBASE_ENV_JSON secret is missing" >&2

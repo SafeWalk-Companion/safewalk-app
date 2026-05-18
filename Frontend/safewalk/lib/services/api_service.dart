@@ -67,7 +67,6 @@ class ApiService {
     }
 
     var result = await request();
-
     if (result.statusCode == 401) {
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
