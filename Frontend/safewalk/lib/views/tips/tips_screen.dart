@@ -401,7 +401,6 @@ class _TipIcon extends StatelessWidget {
 }
 
 class _HeadphoneBanner extends StatelessWidget {  const _HeadphoneBanner({required this.tip});
-
   final Tip tip;
 
   @override
