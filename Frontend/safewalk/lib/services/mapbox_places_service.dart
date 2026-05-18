@@ -14,21 +14,28 @@ class MapboxPlacesService {
            'https://api.mapbox.com/geocoding/v5/mapbox.places',
        _accessTokenOverride = accessTokenOverride;
 
-  static const accessToken = String.fromEnvironment('MAPBOX_ACCESS_TOKEN');
+  static const accessTokenFallback =
+      String.fromEnvironment('MAPBOX_ACCESS_TOKEN');
 
   static const styleUri =
       'mapbox://styles/safewalkteam/cmobay96u00a801s805jsegqr';
 
   final http.Client _client;
   final String _geocodingBaseUrl;
-  final String? _accessTokenOverride;
+  String? _accessTokenOverride;
 
   String get _effectiveAccessToken =>
       (_accessTokenOverride ?? '').isNotEmpty
           ? _accessTokenOverride!
-          : accessToken;
+          : accessTokenFallback;
 
   bool get isConfigured => _effectiveAccessToken.isNotEmpty;
+
+  String get accessToken => _effectiveAccessToken;
+
+  void updateAccessToken(String? accessToken) {
+    _accessTokenOverride = accessToken;
+  }
 
   Future<List<MapPlaceSuggestion>> searchPlaces(
     String query, {
