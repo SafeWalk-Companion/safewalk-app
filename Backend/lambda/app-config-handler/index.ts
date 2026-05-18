@@ -24,19 +24,19 @@ export const handler = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
   if (event.routeKey !== 'GET /app-config') {
-    return jsonResponse(404, { success: false, message: 'Route not found' });
+    return jsonResponse(404, { success: false, message: 'Route nicht gefunden' });
   }
 
   const userId = getAuthenticatedUserId(event);
   if (!userId) {
-    return jsonResponse(401, { success: false, message: 'Unauthorized' });
+    return jsonResponse(401, { success: false, message: 'Nicht autorisiert' });
   }
 
   const mapboxAccessToken = process.env.MAPBOX_ACCESS_TOKEN;
   if (!mapboxAccessToken || mapboxAccessToken.trim().length === 0) {
     return jsonResponse(500, {
       success: false,
-      message: 'Server configuration error: MAPBOX_ACCESS_TOKEN not set',
+      message: 'Serverkonfigurationsfehler: MAPBOX_ACCESS_TOKEN ist nicht gesetzt',
     });
   }
 
