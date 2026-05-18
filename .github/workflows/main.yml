@@ -181,3 +181,4 @@ jobs:
           aws-account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           aws-region: ${{ env.AWS_REGION }}
           fcm-service-account-json: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+          mapbox-access-token: ${{ secrets.MAPBOX_ACCESS_TOKEN }}
