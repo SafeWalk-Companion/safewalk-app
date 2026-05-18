@@ -217,7 +217,6 @@ void main() {
     final push = FakePushService();
     final vm = LoginViewModel(apiService: api, pushNotificationService: push);
 
-    vm.skipLogin();
     await vm.signOut();
 
     expect(vm.isAuthenticated, isFalse);
