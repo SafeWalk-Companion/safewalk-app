@@ -51,7 +51,7 @@ class ApiConstants {
   /// POST – Register user on the SafeWalk platform.
   static const String registerPlatform = '/register/platform';
 
-  /// GET – Retrieve runtime configuration (e.g. Mapbox token).
+  /// GET – Retrieve runtime configuration (e.g. Mapbox access token).
   static const String appConfig = '/app-config';
 
   /// GET  – Retrieve current sharing code.

@@ -26,6 +26,7 @@ runs:
       working-directory: Frontend/safewalk
       env:
         FIREBASE_ENV_JSON: ${{ inputs.firebase-env-json }}
+      shell: bash
       run: |
         if [ -z "$FIREBASE_ENV_JSON" ]; then
           echo "FIREBASE_ENV_JSON secret is missing" >&2
@@ -35,10 +36,12 @@ runs:
 
     - name: Install dependencies
       working-directory: Frontend/safewalk
+      shell: bash
       run: flutter pub get
 
     - name: Build release APK
       working-directory: Frontend/safewalk
+      shell: bash
       run: flutter build apk --dart-define-from-file=firebase.env.json
 
     - name: Upload APK
