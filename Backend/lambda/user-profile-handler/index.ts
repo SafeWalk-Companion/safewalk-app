@@ -108,10 +108,12 @@ function getPartnerSafeWalkId(c: PlatformContact): string {
  * Merges platform contact entries (outgoing / incoming) into a deduplicated
  * list of FrontendContacts grouped by partner safeWalkId.
  *
- * - incoming entry  → populates locationSharing / sosSharing (user's own sharing settings)
- * - outgoing entry  → populates sharesBackLocation / sharesBackSOS (contact's sharing to user)
- * - isOutgoing      → true when the user has their own sharing entry (platform-side "incoming")
- * - id              → the outgoing contactId is preferred; falls back to incoming
+ * Platform semantics: each record's locationSharing/sosSharing belongs to the requester.
+ * - outgoing entry  → user is requester → populates locationSharing / sosSharing (user's own sharing settings)
+ * - incoming entry  → partner is requester → populates sharesBackLocation / sharesBackSOS (contact's sharing to user)
+ * - outgoingContactId → the user's own contact ID (where user is requester) used for PATCH
+ * - isOutgoing      → true when the user has initiated sharing (has an outgoing/requester entry)
+ * - contactId       → the outgoing contactId is preferred; falls back to incoming
  */
 function buildFrontendContacts(platformContacts: PlatformContact[]): FrontendContact[] {
   const byPartner = new Map<string, { outgoing?: PlatformContact; incoming?: PlatformContact }>();
@@ -130,14 +132,14 @@ function buildFrontendContacts(platformContacts: PlatformContact[]): FrontendCon
     const representative = outgoing ?? incoming!;
     contacts.push({
       contactId: representative.contactId,
-      outgoingContactId: incoming?.contactId ?? null,
+      outgoingContactId: outgoing?.contactId ?? null,
       safeWalkId: getPartnerSafeWalkId(representative),
       displayName: representative.peerName ?? 'Unbenannte Kontaktperson',
-      isOutgoing: !!incoming,
-      locationSharing: incoming?.locationSharing ?? false,
-      sosSharing: incoming?.sosSharing ?? false,
-      sharesBackLocation: outgoing?.locationSharing ?? false,
-      sharesBackSOS: outgoing?.sosSharing ?? false,
+      isOutgoing: !!outgoing,
+      locationSharing: outgoing?.locationSharing ?? false,
+      sosSharing: outgoing?.sosSharing ?? false,
+      sharesBackLocation: incoming?.locationSharing ?? false,
+      sharesBackSOS: incoming?.sosSharing ?? false,
     });
   }
 
